@@ -116,7 +116,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     sounds.roll()
 
     const newDice = dice.map(d =>
-      d.held ? d : { ...d, value: Math.ceil(Math.random() * 6) }
+      d.held ? d : { ...d, value: Math.floor(Math.random() * 6) + 1 }
     )
     const newRollsLeft = rollsLeft - 1
 

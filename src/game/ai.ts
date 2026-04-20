@@ -35,7 +35,7 @@ function estimateEV(dice: Die[], held: boolean[], available: CategoryId[]): numb
   const samples = 50
   for (let s = 0; s < samples; s++) {
     const sim = [...heldValues]
-    for (let j = 0; j < freeCount; j++) sim.push(Math.ceil(Math.random() * 6))
+    for (let j = 0; j < freeCount; j++) sim.push(Math.floor(Math.random() * 6) + 1)
     const simDice: Die[] = sim.map((v, i) => ({ id: i, value: v, held: false }))
     total += bestScore(simDice, available)
   }
