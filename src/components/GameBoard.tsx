@@ -54,7 +54,14 @@ export default function GameBoard() {
       <div className="mt-auto pt-6 pb-4 font-mono text-gray-700 text-xs text-center leading-relaxed">
         Welcome to Yahtzee, Brought to you by<br />
         Jonathan Milley, and Lori Hogan<br />
-        <span className="text-gray-600">Converted from Java to React by Jonathan Milley and Claude Sonnet 4.6</span>
+        <span className="text-gray-600">Converted from Java to React by Jonathan Milley and Claude Sonnet 4.6</span><br />
+        <a
+          href="/yahtzee.jar"
+          download="yahtzee.jar"
+          className="text-neon-pink/50 hover:text-neon-pink transition-colors mt-1 inline-block"
+        >
+          ↓ Download original Java version (v1.0)
+        </a>
       </div>
 
       {/* Game Over overlay */}
