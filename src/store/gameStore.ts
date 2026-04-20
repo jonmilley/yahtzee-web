@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { CategoryId, Die, GameMode, GamePhase, Player } from '../game/types'
 import { CATEGORIES } from '../game/types'
-import { calculateScore, totalScore, bonus, upperTotal } from '../game/scoring'
+import { calculateScore } from '../game/scoring'
 import { chooseHeld, chooseBestCategory } from '../game/ai'
 import { sounds } from '../sounds/sounds'
 
@@ -11,13 +11,12 @@ interface GameStore {
   players: Player[]
   currentPlayerIdx: number
   dice: Die[]
-  rollsLeft: number      // 3 = no roll yet, 2, 1, 0
+  rollsLeft: number
   pendingCategory: CategoryId | null
-  round: number          // 1-13
+  round: number
   aiThinking: boolean
   message: string
 
-  // Actions
   startGame: (mode: GameMode, names?: string[]) => void
   rollDice: () => void
   toggleHold: (dieId: number) => void
@@ -25,6 +24,9 @@ interface GameStore {
   scoreCategory: () => void
   backToMenu: () => void
 }
+
+type Get = () => GameStore
+type Set = (partial: Partial<GameStore> | ((s: GameStore) => Partial<GameStore>)) => void
 
 function turnMsg(p: Player): string {
   return p.name === 'You' ? 'Your turn' : `${p.name}'s turn`
@@ -36,6 +38,43 @@ function freshDice(): Die[] {
 
 function freshPlayer(id: number, name: string, isAI: boolean): Player {
   return { id, name, isAI, scoreCard: {} }
+}
+
+function aiShouldScore(dice: Die[], scoreCard: Partial<Record<CategoryId, number>>): boolean {
+  const available = CATEGORIES.filter(c => scoreCard[c.id] === undefined)
+  const best = Math.max(...available.map(c => calculateScore(c.id, dice)))
+  return best >= 40
+}
+
+function aiStep(_newDice: Die[], rollsLeft: number, get: Get, set: Set) {
+  if (rollsLeft === 0) {
+    setTimeout(() => {
+      const { dice, players, currentPlayerIdx } = get()
+      const p = players[currentPlayerIdx]
+      const cat = chooseBestCategory(dice, p.scoreCard)
+      set({ pendingCategory: cat, aiThinking: false })
+      setTimeout(() => get().scoreCategory(), 500)
+    }, 800)
+    return
+  }
+
+  set({ aiThinking: true })
+  setTimeout(() => {
+    const { dice: currentDice, players, currentPlayerIdx } = get()
+    const p = players[currentPlayerIdx]
+    const shouldScore = rollsLeft <= 1 || aiShouldScore(currentDice, p.scoreCard)
+
+    if (shouldScore) {
+      const cat = chooseBestCategory(currentDice, p.scoreCard)
+      set({ pendingCategory: cat, aiThinking: false })
+      setTimeout(() => get().scoreCategory(), 600)
+    } else {
+      const heldMask = chooseHeld(currentDice, p.scoreCard, rollsLeft)
+      const held = currentDice.map((d, i) => ({ ...d, held: heldMask[i] }))
+      set({ dice: held, aiThinking: false })
+      setTimeout(() => get().rollDice(), 700)
+    }
+  }, 900)
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -91,26 +130,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
         : `${prefix} — ${newRollsLeft} roll${newRollsLeft !== 1 ? 's' : ''} left`
     set({ message: msg })
 
-    // Trigger AI logic after roll
     if (player.isAI) {
-      get()._aiStep(newDice, newRollsLeft)
+      aiStep(newDice, newRollsLeft, get, set)
     }
   },
 
   toggleHold(dieId) {
     const { rollsLeft, phase, players, currentPlayerIdx, aiThinking, dice } = get()
     if (rollsLeft === 3 || phase !== 'rolling' || aiThinking) return
-    const player = players[currentPlayerIdx]
-    if (player.isAI) return
+    if (players[currentPlayerIdx].isAI) return
 
     sounds.hold()
     set({ dice: dice.map(d => d.id === dieId ? { ...d, held: !d.held } : d) })
   },
 
   selectCategory(cat) {
-    const { players, currentPlayerIdx, dice, phase, aiThinking, rollsLeft } = get()
+    const { players, currentPlayerIdx, phase, aiThinking, rollsLeft } = get()
     if (phase !== 'rolling' || aiThinking) return
-    if (rollsLeft === 3) return  // must roll at least once
+    if (rollsLeft === 3) return
     const player = players[currentPlayerIdx]
     if (player.isAI) return
     if (player.scoreCard[cat] !== undefined) return
@@ -140,7 +177,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const nextRound = nextPlayerIdx === 0 ? round + 1 : round
 
     if (nextRound > 13) {
-      // Game over
       set({ players: updatedPlayers, phase: 'gameover', message: '' })
       sounds.gameover()
       return
@@ -165,47 +201,4 @@ export const useGameStore = create<GameStore>((set, get) => ({
   backToMenu() {
     set({ mode: 'menu', phase: 'rolling', aiThinking: false })
   },
-
-  // Internal AI step — not part of public interface but stored for internal calls
-  _aiStep(dice: Die[], rollsLeft: number) {
-    const { players, currentPlayerIdx } = get()
-    const player = players[currentPlayerIdx]
-
-    if (rollsLeft === 0) {
-      // Must score
-      setTimeout(() => {
-        const { dice, players, currentPlayerIdx } = get()
-        const p = players[currentPlayerIdx]
-        const cat = chooseBestCategory(dice, p.scoreCard)
-        set({ pendingCategory: cat, aiThinking: false })
-        setTimeout(() => get().scoreCategory(), 500)
-      }, 800)
-      return
-    }
-
-    set({ aiThinking: true })
-    setTimeout(() => {
-      const { dice: currentDice, players, currentPlayerIdx } = get()
-      const p = players[currentPlayerIdx]
-      const shouldScore = rollsLeft <= 1 || _aiShouldScore(currentDice, p.scoreCard)
-
-      if (shouldScore) {
-        const cat = chooseBestCategory(currentDice, p.scoreCard)
-        set({ pendingCategory: cat, aiThinking: false })
-        setTimeout(() => get().scoreCategory(), 600)
-      } else {
-        const heldMask = chooseHeld(currentDice, p.scoreCard, rollsLeft)
-        const newDice = currentDice.map((d, i) => ({ ...d, held: heldMask[i] }))
-        set({ dice: newDice, aiThinking: false })
-        setTimeout(() => get().rollDice(), 700)
-      }
-    }, 900)
-  },
-} as GameStore & { _aiStep: (dice: Die[], rollsLeft: number) => void }))
-
-function _aiShouldScore(dice: Die[], scoreCard: Partial<Record<CategoryId, number>>): boolean {
-  // If best available score is very high, take it
-  const available = CATEGORIES.filter(c => scoreCard[c.id] === undefined)
-  const best = Math.max(...available.map(c => calculateScore(c.id, dice)))
-  return best >= 40
-}
+}))
