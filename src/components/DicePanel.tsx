@@ -25,8 +25,9 @@ export default function DicePanel() {
     rollsLeft === 1 ? 'ROLL 3' : 'SCORE'
 
   return (
-    <div className="flex flex-col items-center gap-6 shrink-0">
-      <div className="flex gap-3 items-center pt-6">
+    <div className="flex flex-col items-center gap-4 shrink-0">
+      {/* Dice row — larger tap targets on mobile */}
+      <div className="flex gap-2 sm:gap-3 items-center pt-2 sm:pt-6">
         {dice.map(die => (
           <Die
             key={die.id}
@@ -39,10 +40,12 @@ export default function DicePanel() {
         ))}
       </div>
 
+      {/* Roll button — taller on mobile for easier tapping */}
       <motion.button
         onClick={handleRoll}
         disabled={!canRoll}
-        className={`px-10 py-3 font-pixel text-sm tracking-widest rounded
+        className={`px-8 sm:px-10 py-3 sm:py-3 font-pixel text-sm tracking-widest rounded
+          w-40 sm:w-auto
           ${canRoll
             ? 'bg-neon-pink text-black shadow-[0_0_16px_#ff2d78] hover:shadow-[0_0_24px_#ff2d78] hover:scale-105'
             : 'bg-gray-700 text-gray-500 cursor-not-allowed'
@@ -52,6 +55,7 @@ export default function DicePanel() {
         {aiThinking ? 'CPU...' : rollLabel}
       </motion.button>
 
+      {/* Roll indicator dots */}
       <div className="flex gap-1">
         {[3, 2, 1].map(n => (
           <div

@@ -23,7 +23,7 @@ export default function Die({ value, held, canHold, onClick, rolling }: Props) {
   return (
     <motion.div
       onClick={canHold ? onClick : undefined}
-      className={`relative w-14 h-14 rounded-lg cursor-pointer select-none
+      className={`relative w-14 h-14 sm:w-14 sm:h-14 rounded-lg cursor-pointer select-none
         ${held
           ? 'bg-neon-green/20 border-2 border-neon-green shadow-[0_0_12px_#39ff14]'
           : value > 0

@@ -14,9 +14,11 @@ import {
 interface Props {
   player: Player
   playerIdx: number
+  /** Expand to fill the parent width (used in the mobile layout) */
+  fullWidth?: boolean
 }
 
-export default function ScoreCard({ player, playerIdx }: Props) {
+export default function ScoreCard({ player, playerIdx, fullWidth = false }: Props) {
   const {
     currentPlayerIdx,
     dice,
@@ -84,7 +86,8 @@ export default function ScoreCard({ player, playerIdx }: Props) {
   }
 
   return (
-    <div className={`bg-arcade-panel rounded-lg p-3 w-48 border transition-all
+    <div className={`bg-arcade-panel rounded-lg p-3 border transition-all
+      ${fullWidth ? 'w-full' : 'w-48'}
       ${isActive ? 'border-neon-pink shadow-[0_0_16px_rgba(255,45,120,0.3)]' : 'border-gray-700'}`}>
       <div className={`font-pixel text-xs text-center mb-3 pb-2 border-b
         ${isActive ? 'text-neon-pink border-neon-pink' : 'text-gray-500 border-gray-700'}`}>
