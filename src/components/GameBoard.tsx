@@ -5,7 +5,8 @@ import ScoreCard from './ScoreCard'
 import GameOver from './GameOver'
 
 export default function GameBoard() {
-  const { players, round, message, phase, currentPlayerIdx, backToMenu } = useGameStore()
+  const { players, round, message, phase, currentPlayerIdx, mode, backToMenu } = useGameStore()
+  const isScoreAttack = mode === 'scoreattack'
 
   return (
     <div className="min-h-screen bg-arcade-bg flex flex-col items-center">
@@ -20,8 +21,15 @@ export default function GameBoard() {
         >
           ← MENU
         </button>
-        <div className="font-pixel text-neon-yellow text-sm tracking-widest">
-          ROUND {round} / 13
+        <div className="flex items-center gap-3">
+          {isScoreAttack && (
+            <span className="font-pixel text-[9px] text-[#00d4ff] tracking-widest">
+              SCORE ATTACK
+            </span>
+          )}
+          <div className="font-pixel text-neon-yellow text-sm tracking-widest">
+            ROUND {round} / 13
+          </div>
         </div>
         <div className="font-pixel text-xs text-gray-500">
           {players[currentPlayerIdx]?.name ?? ''}
@@ -42,13 +50,20 @@ export default function GameBoard() {
       </AnimatePresence>
 
       {/* Main layout */}
-      <div className="flex items-start gap-6 mt-4 px-4 overflow-x-auto w-full justify-center">
-        {players[0] && <ScoreCard player={players[0]} playerIdx={0} />}
-
-        <DicePanel />
-
-        {players[1] && <ScoreCard player={players[1]} playerIdx={1} />}
-      </div>
+      {isScoreAttack ? (
+        /* Score Attack: single player, score card on the left of dice */
+        <div className="flex items-start gap-6 mt-4 px-4 justify-center">
+          {players[0] && <ScoreCard player={players[0]} playerIdx={0} />}
+          <DicePanel />
+        </div>
+      ) : (
+        /* Standard: score card on each side of dice */
+        <div className="flex items-start gap-6 mt-4 px-4 overflow-x-auto w-full justify-center">
+          {players[0] && <ScoreCard player={players[0]} playerIdx={0} />}
+          <DicePanel />
+          {players[1] && <ScoreCard player={players[1]} playerIdx={1} />}
+        </div>
+      )}
 
       {/* Footer */}
       <div className="mt-auto pt-6 pb-4 font-mono text-gray-700 text-xs text-center leading-relaxed">

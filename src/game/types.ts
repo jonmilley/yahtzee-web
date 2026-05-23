@@ -27,7 +27,7 @@ export interface Player {
   yahtzeeBonus: number  // accumulated +100 pts per extra Yahtzee rolled
 }
 
-export type GameMode = 'menu' | 'solo' | 'local2p'
+export type GameMode = 'menu' | 'solo' | 'local2p' | 'scoreattack'
 export type GamePhase = 'rolling' | 'scoring' | 'gameover'
 export type AiDifficulty = 'easy' | 'medium' | 'hard'
 

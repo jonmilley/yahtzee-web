@@ -4,8 +4,9 @@ import { useGameStore } from '../store/gameStore'
 import { sounds } from '../sounds/sounds'
 import WelcomeDialog from './WelcomeDialog'
 import type { AiDifficulty } from '../game/types'
+import { getScoreAttackBest, getTier } from '../utils/highScores'
 
-type NamingState = { mode: 'solo' | 'local2p'; names: string[] } | null
+type NamingState = { mode: 'solo' | 'local2p' | 'scoreattack'; names: string[] } | null
 
 const DIFFICULTY_OPTIONS: { value: AiDifficulty; label: string; desc: string; color: string }[] = [
   { value: 'easy',   label: 'EASY',   desc: 'Relaxed CPU',     color: 'border-neon-green  text-neon-green  shadow-[0_0_8px_#39ff14]' },
@@ -19,9 +20,9 @@ export default function Menu() {
   const [difficulty, setDifficulty] = useState<AiDifficulty>('medium')
   const [showWelcome, setShowWelcome] = useState(true)
 
-  function openNaming(mode: 'solo' | 'local2p') {
+  function openNaming(mode: 'solo' | 'local2p' | 'scoreattack') {
     sounds.click()
-    setNaming({ mode, names: mode === 'solo' ? [''] : ['', ''] })
+    setNaming({ mode, names: mode === 'local2p' ? ['', ''] : [''] })
   }
 
   function handleLaunch() {
@@ -96,6 +97,8 @@ export default function Menu() {
             2 PLAYERS
             <div className="text-[10px] opacity-70 font-mono mt-0.5">local co-op</div>
           </motion.button>
+
+          <ScoreAttackButton openNaming={openNaming} />
         </div>
 
         {/* Rules hint */}
@@ -132,7 +135,9 @@ export default function Menu() {
                 rounded-xl p-8 w-80 flex flex-col gap-5"
             >
               <div className="font-pixel text-neon-pink text-xs text-center tracking-widest">
-                {naming.mode === 'solo' ? 'ENTER YOUR NAME' : 'PLAYER NAMES'}
+                {naming.mode === 'solo' ? 'ENTER YOUR NAME'
+                  : naming.mode === 'scoreattack' ? 'SCORE ATTACK'
+                  : 'PLAYER NAMES'}
               </div>
 
               {naming.names.map((name, i) => (
@@ -146,6 +151,9 @@ export default function Menu() {
                   onEnter={i === naming.names.length - 1 ? handleLaunch : undefined}
                 />
               ))}
+
+              {/* Personal best – only for score attack */}
+              {naming.mode === 'scoreattack' && <PersonalBestBadge />}
 
               {/* Difficulty selector – only for solo mode */}
               {naming.mode === 'solo' && (
@@ -222,6 +230,45 @@ function NameInput({ label, value, placeholder, autoFocus, onChange, onEnter }: 
           font-mono text-sm text-white placeholder-gray-600 outline-none
           focus:shadow-[0_0_8px_rgba(255,45,120,0.4)] transition-all"
       />
+    </div>
+  )
+}
+
+function ScoreAttackButton({ openNaming }: { openNaming: (m: 'scoreattack') => void }) {
+  const best = getScoreAttackBest()
+  const tier = getTier(best)
+  return (
+    <motion.button
+      onClick={() => openNaming('scoreattack')}
+      className="w-64 py-4 font-pixel text-sm bg-[#00d4ff] text-black rounded-lg
+        shadow-[0_0_20px_#00d4ff] hover:shadow-[0_0_32px_#00d4ff] tracking-widest"
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.97 }}
+    >
+      SCORE ATTACK
+      <div className="text-[10px] font-mono mt-0.5 opacity-70">
+        {best > 0 ? `best: ${best} · ${tier.label}` : 'beat your best'}
+      </div>
+    </motion.button>
+  )
+}
+
+function PersonalBestBadge() {
+  const best = getScoreAttackBest()
+  const tier = getTier(best)
+  if (best === 0) {
+    return (
+      <div className="text-center font-mono text-[10px] text-gray-500">
+        No record yet — good luck!
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-center justify-between px-3 py-2 rounded bg-black/40 border border-gray-700">
+      <span className="font-pixel text-[9px] text-gray-400">PERSONAL BEST</span>
+      <span className={`font-pixel text-[10px] ${tier.color} ${tier.glow}`}>
+        {best} · {tier.label}
+      </span>
     </div>
   )
 }

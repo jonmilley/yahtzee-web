@@ -98,6 +98,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const players =
       mode === 'solo'
         ? [freshPlayer(0, n1 || 'Player 1', false), freshPlayer(1, 'CPU', true)]
+        : mode === 'scoreattack'
+        ? [freshPlayer(0, n1 || 'Player 1', false)]
         : [freshPlayer(0, n1 || 'Player 1', false), freshPlayer(1, n2 || 'Player 2', false)]
     set({
       mode,
@@ -167,7 +169,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   scoreCategory() {
-    const { pendingCategory, players, currentPlayerIdx, dice, round } = get()
+    const { pendingCategory, players, currentPlayerIdx, dice, round, mode } = get()
     if (!pendingCategory) return
 
     const player = players[currentPlayerIdx]
@@ -202,6 +204,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     const updatedPlayers = players.map(p => p.id === player.id ? updatedPlayer : p)
 
+    // ── Score Attack: single-player, no turn switching ──────────────────────
+    if (mode === 'scoreattack') {
+      const nextRound = round + 1
+      if (nextRound > 13) {
+        set({ players: updatedPlayers, phase: 'gameover', message: '' })
+        sounds.gameover()
+        return
+      }
+      set({
+        players: updatedPlayers,
+        dice: freshDice(),
+        rollsLeft: 3,
+        pendingCategory: null,
+        round: nextRound,
+        message: `${turnMsg(updatedPlayer)} — roll the dice!`,
+      })
+      return
+    }
+
+    // ── Standard 2-player turn switching ────────────────────────────────────
     const nextPlayerIdx = (currentPlayerIdx + 1) % 2
     const nextRound = nextPlayerIdx === 0 ? round + 1 : round
 
