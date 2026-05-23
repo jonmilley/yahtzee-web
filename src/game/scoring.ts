@@ -49,6 +49,28 @@ export function calculateScore(category: CategoryId, dice: Die[]): number {
   }
 }
 
+/** Returns true when all 5 dice show the same face value. */
+export function isYahtzeeRoll(dice: Die[]): boolean {
+  const v = dice[0]?.value
+  return !!v && dice.every(d => d.value === v)
+}
+
+/**
+ * Calculate score with the Joker rule active.
+ * When a player rolls a second (or further) Yahtzee and the Yahtzee box is
+ * already filled, they may score in any open category. Full House, Sm. Straight,
+ * and Lg. Straight award their fixed bonus values regardless of the dice.
+ * All other categories use the standard calculation.
+ */
+export function calculateScoreJoker(category: CategoryId, dice: Die[]): number {
+  switch (category) {
+    case 'fullHouse':    return 25
+    case 'smallStraight': return 30
+    case 'largeStraight': return 40
+    default: return calculateScore(category, dice)
+  }
+}
+
 export function upperTotal(scoreCard: Partial<Record<CategoryId, number>>): number {
   const upper: CategoryId[] = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes']
   return upper.reduce((t, id) => t + (scoreCard[id] ?? 0), 0)
@@ -58,6 +80,14 @@ export function bonus(scoreCard: Partial<Record<CategoryId, number>>): number {
   return upperTotal(scoreCard) >= 63 ? 35 : 0
 }
 
-export function totalScore(scoreCard: Partial<Record<CategoryId, number>>): number {
-  return Object.values(scoreCard).reduce((t, v) => t + (v ?? 0), 0) + bonus(scoreCard)
+/**
+ * @param yahtzeeBonus - accumulated bonus points from extra Yahtzees (+100 each)
+ */
+export function totalScore(
+  scoreCard: Partial<Record<CategoryId, number>>,
+  yahtzeeBonus = 0
+): number {
+  return Object.values(scoreCard).reduce((t, v) => t + (v ?? 0), 0)
+    + bonus(scoreCard)
+    + yahtzeeBonus
 }

@@ -8,7 +8,7 @@ export default function GameOver() {
   const { players, mode, startGame, backToMenu } = useGameStore()
   const names = players.map(p => p.name)
 
-  const scores = players.map(p => ({ ...p, total: totalScore(p.scoreCard) }))
+  const scores = players.map(p => ({ ...p, total: totalScore(p.scoreCard, p.yahtzeeBonus) }))
   const sorted = [...scores].sort((a, b) => b.total - a.total)
   const winner = sorted[0]
   const tie = sorted.length > 1 && sorted[0].total === sorted[1].total

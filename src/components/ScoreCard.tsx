@@ -2,7 +2,14 @@ import { motion } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import type { CategoryId, Player } from '../game/types'
 import { CATEGORIES } from '../game/types'
-import { calculateScore, upperTotal, bonus, totalScore } from '../game/scoring'
+import {
+  calculateScore,
+  calculateScoreJoker,
+  isYahtzeeRoll,
+  upperTotal,
+  bonus,
+  totalScore,
+} from '../game/scoring'
 
 interface Props {
   player: Player
@@ -10,21 +17,36 @@ interface Props {
 }
 
 export default function ScoreCard({ player, playerIdx }: Props) {
-  const { currentPlayerIdx, dice, rollsLeft, phase, pendingCategory, selectCategory, scoreCategory, aiThinking } = useGameStore()
+  const {
+    currentPlayerIdx,
+    dice,
+    rollsLeft,
+    phase,
+    pendingCategory,
+    selectCategory,
+    clearPendingCategory,
+    scoreCategory,
+    aiThinking,
+  } = useGameStore()
+
   const isActive = currentPlayerIdx === playerIdx
   const canScore = isActive && rollsLeft < 3 && phase === 'rolling' && !player.isAI && !aiThinking
+
+  // Joker rule: player rolled another Yahtzee while their Yahtzee box is already filled
+  const jokerActive = canScore && isYahtzeeRoll(dice) && player.scoreCard['yahtzee'] === 50
 
   const upper = CATEGORIES.filter(c => c.section === 'upper')
   const lower = CATEGORIES.filter(c => c.section === 'lower')
   const upTotal = upperTotal(player.scoreCard)
   const bonusVal = bonus(player.scoreCard)
-  const total = totalScore(player.scoreCard)
+  const total = totalScore(player.scoreCard, player.yahtzeeBonus)
 
   function handleClick(catId: CategoryId) {
     if (!canScore) return
     if (player.scoreCard[catId] !== undefined) return
     if (pendingCategory === catId) {
-      scoreCategory()
+      // Clicking the already-selected category deselects it (undo selection)
+      clearPendingCategory()
     } else {
       selectCategory(catId)
     }
@@ -40,16 +62,22 @@ export default function ScoreCard({ player, playerIdx }: Props) {
     return 'text-gray-500 border border-transparent'
   }
 
+  function getPreviewScore(catId: CategoryId): number {
+    return jokerActive
+      ? calculateScoreJoker(catId, dice)
+      : calculateScore(catId, dice)
+  }
+
   function displayScore(catId: CategoryId): string {
     if (player.scoreCard[catId] !== undefined) return String(player.scoreCard[catId])
-    if (canScore) return String(calculateScore(catId, dice))
+    if (canScore) return String(getPreviewScore(catId))
     return '-'
   }
 
   const scoreColor = (catId: CategoryId) => {
     if (player.scoreCard[catId] !== undefined) return 'text-neon-green'
     if (canScore) {
-      const s = calculateScore(catId, dice)
+      const s = getPreviewScore(catId)
       return s > 0 ? 'text-neon-yellow' : 'text-red-500'
     }
     return 'text-gray-600'
@@ -98,22 +126,54 @@ export default function ScoreCard({ player, playerIdx }: Props) {
           </motion.div>
         ))}
 
-        <div className="flex justify-between px-2 py-1 mt-2 border-t border-neon-pink/40 font-pixel text-[11px]">
+        {/* Yahtzee Bonus row — shown once > 0 or always for clarity */}
+        <div className={`flex justify-between px-2 py-0.5 mt-1 border-t border-gray-700
+          ${player.yahtzeeBonus > 0 ? 'text-neon-green' : 'text-gray-600'}`}>
+          <span>Ytz Bonus</span>
+          <span>{player.yahtzeeBonus > 0 ? `+${player.yahtzeeBonus}` : '—'}</span>
+        </div>
+
+        <div className="flex justify-between px-2 py-1 mt-1 border-t border-neon-pink/40 font-pixel text-[11px]">
           <span className="text-neon-pink">TOTAL</span>
           <span className="text-neon-green">{total}</span>
         </div>
       </div>
 
+      {/* Action buttons: CANCEL + CONFIRM */}
       {pendingCategory && isActive && !player.isAI && (
-        <motion.button
-          onClick={scoreCategory}
+        <motion.div
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full mt-2 py-1.5 bg-neon-yellow text-black font-pixel text-[10px] rounded
-            shadow-[0_0_10px_#ffe600] hover:shadow-[0_0_18px_#ffe600] transition-all"
+          className="flex gap-2 mt-2"
         >
-          CONFIRM SCORE
-        </motion.button>
+          <button
+            onClick={clearPendingCategory}
+            className="flex-1 py-1.5 bg-gray-700 text-gray-300 font-pixel text-[9px] rounded
+              hover:bg-gray-600 transition-all"
+          >
+            CANCEL
+          </button>
+          <motion.button
+            onClick={scoreCategory}
+            className="flex-1 py-1.5 bg-neon-yellow text-black font-pixel text-[9px] rounded
+              shadow-[0_0_10px_#ffe600] hover:shadow-[0_0_18px_#ffe600] transition-all"
+            whileTap={{ scale: 0.97 }}
+          >
+            CONFIRM
+          </motion.button>
+        </motion.div>
+      )}
+
+      {/* Joker indicator */}
+      {jokerActive && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-2 text-center font-pixel text-[8px] text-neon-yellow
+            drop-shadow-[0_0_6px_#ffe600] tracking-widest"
+        >
+          ⚡ JOKER +100
+        </motion.div>
       )}
     </div>
   )

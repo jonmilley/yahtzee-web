@@ -3,12 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import { sounds } from '../sounds/sounds'
 import WelcomeDialog from './WelcomeDialog'
+import type { AiDifficulty } from '../game/types'
 
 type NamingState = { mode: 'solo' | 'local2p'; names: string[] } | null
+
+const DIFFICULTY_OPTIONS: { value: AiDifficulty; label: string; desc: string; color: string }[] = [
+  { value: 'easy',   label: 'EASY',   desc: 'Relaxed CPU',     color: 'border-neon-green  text-neon-green  shadow-[0_0_8px_#39ff14]' },
+  { value: 'medium', label: 'MEDIUM', desc: 'Smart CPU',       color: 'border-neon-yellow text-neon-yellow shadow-[0_0_8px_#ffe600]' },
+  { value: 'hard',   label: 'HARD',   desc: 'Ruthless CPU',    color: 'border-neon-pink   text-neon-pink   shadow-[0_0_8px_#ff2d78]' },
+]
 
 export default function Menu() {
   const { startGame } = useGameStore()
   const [naming, setNaming] = useState<NamingState>(null)
+  const [difficulty, setDifficulty] = useState<AiDifficulty>('medium')
   const [showWelcome, setShowWelcome] = useState(true)
 
   function openNaming(mode: 'solo' | 'local2p') {
@@ -19,7 +27,7 @@ export default function Menu() {
   function handleLaunch() {
     if (!naming) return
     sounds.click()
-    startGame(naming.mode, naming.names)
+    startGame(naming.mode, naming.names, naming.mode === 'solo' ? difficulty : undefined)
   }
 
   function setName(idx: number, val: string) {
@@ -138,6 +146,30 @@ export default function Menu() {
                   onEnter={i === naming.names.length - 1 ? handleLaunch : undefined}
                 />
               ))}
+
+              {/* Difficulty selector – only for solo mode */}
+              {naming.mode === 'solo' && (
+                <div className="flex flex-col gap-2">
+                  <div className="font-pixel text-[9px] text-gray-400 tracking-widest">CPU DIFFICULTY</div>
+                  <div className="flex gap-2">
+                    {DIFFICULTY_OPTIONS.map(opt => (
+                      <motion.button
+                        key={opt.value}
+                        onClick={() => { sounds.click(); setDifficulty(opt.value) }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`flex-1 py-1.5 rounded border font-pixel text-[9px] transition-all
+                          ${difficulty === opt.value
+                            ? opt.color + ' bg-white/5'
+                            : 'border-gray-600 text-gray-500 hover:border-gray-400'
+                          }`}
+                      >
+                        {opt.label}
+                        <div className="font-mono text-[7px] opacity-60 mt-0.5">{opt.desc}</div>
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3 mt-1">
                 <button

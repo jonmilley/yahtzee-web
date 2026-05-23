@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import type { CategoryId, Die, GameMode, GamePhase, Player } from '../game/types'
+import type { AiDifficulty, CategoryId, Die, GameMode, GamePhase, Player } from '../game/types'
 import { CATEGORIES } from '../game/types'
-import { calculateScore } from '../game/scoring'
+import { calculateScore, calculateScoreJoker, isYahtzeeRoll } from '../game/scoring'
 import { chooseHeld, chooseBestCategory } from '../game/ai'
 import { sounds } from '../sounds/sounds'
 
@@ -15,12 +15,14 @@ interface GameStore {
   pendingCategory: CategoryId | null
   round: number
   aiThinking: boolean
+  aiDifficulty: AiDifficulty
   message: string
 
-  startGame: (mode: GameMode, names?: string[]) => void
+  startGame: (mode: GameMode, names?: string[], difficulty?: AiDifficulty) => void
   rollDice: () => void
   toggleHold: (dieId: number) => void
   selectCategory: (cat: CategoryId) => void
+  clearPendingCategory: () => void
   scoreCategory: () => void
   backToMenu: () => void
 }
@@ -37,7 +39,7 @@ function freshDice(): Die[] {
 }
 
 function freshPlayer(id: number, name: string, isAI: boolean): Player {
-  return { id, name, isAI, scoreCard: {} }
+  return { id, name, isAI, scoreCard: {}, yahtzeeBonus: 0 }
 }
 
 function aiShouldScore(dice: Die[], scoreCard: Partial<Record<CategoryId, number>>): boolean {
@@ -49,9 +51,9 @@ function aiShouldScore(dice: Die[], scoreCard: Partial<Record<CategoryId, number
 function aiStep(_newDice: Die[], rollsLeft: number, get: Get, set: Set) {
   if (rollsLeft === 0) {
     setTimeout(() => {
-      const { dice, players, currentPlayerIdx } = get()
+      const { dice, players, currentPlayerIdx, aiDifficulty } = get()
       const p = players[currentPlayerIdx]
-      const cat = chooseBestCategory(dice, p.scoreCard)
+      const cat = chooseBestCategory(dice, p.scoreCard, aiDifficulty)
       set({ pendingCategory: cat, aiThinking: false })
       setTimeout(() => get().scoreCategory(), 500)
     }, 800)
@@ -60,16 +62,16 @@ function aiStep(_newDice: Die[], rollsLeft: number, get: Get, set: Set) {
 
   set({ aiThinking: true })
   setTimeout(() => {
-    const { dice: currentDice, players, currentPlayerIdx } = get()
+    const { dice: currentDice, players, currentPlayerIdx, aiDifficulty } = get()
     const p = players[currentPlayerIdx]
     const shouldScore = rollsLeft <= 1 || aiShouldScore(currentDice, p.scoreCard)
 
     if (shouldScore) {
-      const cat = chooseBestCategory(currentDice, p.scoreCard)
+      const cat = chooseBestCategory(currentDice, p.scoreCard, aiDifficulty)
       set({ pendingCategory: cat, aiThinking: false })
       setTimeout(() => get().scoreCategory(), 600)
     } else {
-      const heldMask = chooseHeld(currentDice, p.scoreCard, rollsLeft)
+      const heldMask = chooseHeld(currentDice, p.scoreCard, rollsLeft, aiDifficulty)
       const held = currentDice.map((d, i) => ({ ...d, held: heldMask[i] }))
       set({ dice: held, aiThinking: false })
       setTimeout(() => get().rollDice(), 700)
@@ -87,10 +89,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   pendingCategory: null,
   round: 1,
   aiThinking: false,
+  aiDifficulty: 'medium',
   message: '',
 
-  startGame(mode, names) {
+  startGame(mode, names, difficulty) {
     const [n1 = 'Player 1', n2 = 'Player 2'] = names ?? []
+    const resolvedDifficulty = difficulty ?? get().aiDifficulty
     const players =
       mode === 'solo'
         ? [freshPlayer(0, n1 || 'Player 1', false), freshPlayer(1, 'CPU', true)]
@@ -105,6 +109,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       pendingCategory: null,
       round: 1,
       aiThinking: false,
+      aiDifficulty: resolvedDifficulty,
       message: `${turnMsg(players[0])} — roll the dice!`,
     })
   },
@@ -156,19 +161,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ pendingCategory: cat })
   },
 
+  clearPendingCategory() {
+    sounds.click()
+    set({ pendingCategory: null })
+  },
+
   scoreCategory() {
     const { pendingCategory, players, currentPlayerIdx, dice, round } = get()
     if (!pendingCategory) return
 
     const player = players[currentPlayerIdx]
-    const score = calculateScore(pendingCategory, dice)
 
-    if (score === 0) sounds.zero()
-    else if (pendingCategory === 'yahtzee') sounds.yahtzee()
-    else sounds.score()
+    // Detect Joker: player rolled another Yahtzee while yahtzee box is filled with 50
+    const rolledYahtzee = isYahtzeeRoll(dice)
+    const isJoker = rolledYahtzee && player.scoreCard['yahtzee'] === 50
+
+    // Apply Joker scoring for Full House / Straights
+    const score = isJoker
+      ? calculateScoreJoker(pendingCategory, dice)
+      : calculateScore(pendingCategory, dice)
+
+    // Yahtzee bonus: +100 per extra Yahtzee rolled (tracked separately)
+    const newYahtzeeBonus = player.yahtzeeBonus + (isJoker ? 100 : 0)
+
+    // Sound effects
+    if (isJoker) {
+      sounds.yahtzee()
+    } else if (pendingCategory === 'yahtzee' && score === 50) {
+      sounds.yahtzee()
+    } else if (score === 0) {
+      sounds.zero()
+    } else {
+      sounds.score()
+    }
 
     const updatedPlayer: Player = {
       ...player,
+      yahtzeeBonus: newYahtzeeBonus,
       scoreCard: { ...player.scoreCard, [pendingCategory]: score },
     }
     const updatedPlayers = players.map(p => p.id === player.id ? updatedPlayer : p)
