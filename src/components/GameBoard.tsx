@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import type { Player } from '../game/types'
+import { totalScore } from '../game/scoring'
 import DicePanel from './DicePanel'
 import ScoreCard from './ScoreCard'
 import GameOver from './GameOver'
@@ -123,7 +124,7 @@ function MobileScoreCards({
           <button
             key={p.id}
             onClick={() => setActiveTab(i)}
-            className={`flex-1 py-1.5 rounded-lg border font-pixel text-[9px] tracking-wide transition-all
+            className={`flex-1 py-1.5 px-1 rounded-lg border font-pixel text-[9px] tracking-wide transition-all
               ${activeTab === i
                 ? i === currentPlayerIdx
                   ? 'border-neon-pink text-neon-pink bg-neon-pink/10 shadow-[0_0_8px_rgba(255,45,120,0.3)]'
@@ -131,8 +132,12 @@ function MobileScoreCards({
                 : 'border-gray-700 text-gray-600'
               }`}
           >
-            {p.name}
-            {p.isAI && <span className="text-neon-yellow"> [CPU]</span>}
+            <span className="truncate block">{p.name}{p.isAI && <span className="text-neon-yellow"> [CPU]</span>}</span>
+            <span className={`block font-mono text-[11px] mt-0.5 ${
+              activeTab === i && i === currentPlayerIdx ? 'text-neon-green' : 'text-gray-400'
+            }`}>
+              {totalScore(p.scoreCard, p.yahtzeeBonus)}
+            </span>
             {i === currentPlayerIdx && (
               <span className="block text-[7px] text-neon-green mt-0.5 font-mono">● ACTIVE</span>
             )}
