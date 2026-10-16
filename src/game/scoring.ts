@@ -61,3 +61,10 @@ export function bonus(scoreCard: Partial<Record<CategoryId, number>>): number {
 export function totalScore(scoreCard: Partial<Record<CategoryId, number>>): number {
   return Object.values(scoreCard).reduce((t, v) => t + (v ?? 0), 0) + bonus(scoreCard)
 }
+
+// Notable roll worth calling out, best first. Null when nothing special was rolled.
+export function detectCombo(dice: Die[]): CategoryId | null {
+  if (dice.some(d => d.value === 0)) return null
+  const order: CategoryId[] = ['yahtzee', 'largeStraight', 'fullHouse', 'fourOfAKind', 'smallStraight']
+  return order.find(id => calculateScore(id, dice) > 0) ?? null
+}

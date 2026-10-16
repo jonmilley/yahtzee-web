@@ -1,72 +1,76 @@
+import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import { totalScore } from '../game/scoring'
 import { sounds } from '../sounds/sounds'
-import { useEffect } from 'react'
+import Confetti from './Confetti'
 
 export default function GameOver() {
   const { players, mode, startGame, backToMenu } = useGameStore()
-  const names = players.map(p => p.name)
+  const playAgainRef = useRef<HTMLButtonElement>(null)
 
   const scores = players.map(p => ({ ...p, total: totalScore(p.scoreCard) }))
   const sorted = [...scores].sort((a, b) => b.total - a.total)
   const winner = sorted[0]
   const tie = sorted.length > 1 && sorted[0].total === sorted[1].total
+  const happyEnding = !tie && !winner.isAI
+
+  const headline = tie ? 'It’s a tie!' : winner.name === 'You' ? 'You win!' : `${winner.name} wins!`
 
   useEffect(() => {
-    setTimeout(() => sounds.win(), 300)
-  }, [])
+    playAgainRef.current?.focus()
+    const t = setTimeout(() => (happyEnding ? sounds.win() : sounds.gameover()), 350)
+    return () => clearTimeout(t)
+  }, [happyEnding])
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-40"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-[2px]"
     >
+      <Confetti burst={happyEnding ? 1 : 0} />
       <motion.div
-        initial={{ scale: 0.7, y: 40 }}
-        animate={{ scale: 1, y: 0 }}
-        transition={{ type: 'spring', bounce: 0.4 }}
-        className="bg-arcade-panel border-2 border-neon-yellow shadow-[0_0_40px_rgba(255,230,0,0.4)] rounded-xl p-10 text-center max-w-sm w-full"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gameover-title"
+        initial={{ scale: 0.85, y: 50, rotate: 3 }}
+        animate={{ scale: 1, y: 0, rotate: -1 }}
+        transition={{ type: 'spring', bounce: 0.4, delay: 0.15 }}
+        className="paper w-full max-w-sm rounded-2xl px-7 pb-7 pt-6 text-center"
       >
-        <div className="font-pixel text-neon-yellow text-lg mb-1 tracking-widest">GAME OVER</div>
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-print/55">Final score</p>
+        <h2 id="gameover-title" className="mt-1 font-display text-[2.6rem] leading-tight">
+          {headline}
+        </h2>
 
-        {tie ? (
-          <div className="font-pixel text-neon-green text-sm mt-2">IT'S A TIE!</div>
-        ) : (
-          <div className="font-pixel text-neon-green text-sm mt-2">
-            {winner.name} WINS!
-          </div>
-        )}
+        <ol className="mt-5 divide-y divide-print/15 border-y border-print/15">
+          {sorted.map(p => {
+            const top = !tie && p.id === winner.id
+            return (
+              <li key={p.id} className="flex items-center justify-between px-2 py-2.5">
+                <span className={`text-lg ${top ? 'font-bold' : 'font-medium text-print/70'}`}>{p.name}</span>
+                <span className="relative px-2">
+                  {top && <span className="highlighter" />}
+                  <span className="relative font-hand text-[2.2rem] leading-none text-ink">{p.total}</span>
+                </span>
+              </li>
+            )
+          })}
+        </ol>
 
-        <div className="mt-6 space-y-2">
-          {sorted.map(p => (
-            <div key={p.id} className="flex justify-between font-mono text-sm px-4">
-              <span className={p.id === winner.id && !tie ? 'text-neon-yellow' : 'text-gray-400'}>
-                {p.name}
-              </span>
-              <span className={p.id === winner.id && !tie ? 'text-neon-green font-bold' : 'text-gray-400'}>
-                {p.total}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-3 mt-8 justify-center">
-          <button
-            onClick={() => startGame(mode as 'solo' | 'local2p', names)}
-            className="px-6 py-2 font-pixel text-xs bg-neon-pink text-black rounded
-              shadow-[0_0_12px_#ff2d78] hover:shadow-[0_0_20px_#ff2d78] transition-all"
-          >
-            PLAY AGAIN
+        <div className="mt-7 flex gap-3">
+          <button type="button" onClick={backToMenu} className="btn-ghost">
+            Main menu
           </button>
           <button
-            onClick={backToMenu}
-            className="px-6 py-2 font-pixel text-xs bg-gray-700 text-gray-300 rounded
-              hover:bg-gray-600 transition-all"
+            ref={playAgainRef}
+            type="button"
+            onClick={() => startGame(mode, players.map(p => p.name))}
+            className="btn-chunky flex-1"
           >
-            MENU
+            Play again
           </button>
         </div>
       </motion.div>

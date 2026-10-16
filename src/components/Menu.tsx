@@ -1,22 +1,52 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import { sounds } from '../sounds/sounds'
 import WelcomeDialog from './WelcomeDialog'
+import MuteButton from './MuteButton'
+import Credits from './Credits'
+import Die from './Die'
+import Confetti from './Confetti'
 
 type NamingState = { mode: 'solo' | 'local2p'; names: string[] } | null
+
+const NOTE_KEY = 'yahtzee.seenNote'
+
+function hasSeenNote() {
+  try { return localStorage.getItem(NOTE_KEY) === '1' } catch { return false }
+}
 
 export default function Menu() {
   const { startGame } = useGameStore()
   const [naming, setNaming] = useState<NamingState>(null)
-  const [showWelcome, setShowWelcome] = useState(true)
+  const [showNote, setShowNote] = useState(() => !hasSeenNote())
+  const [dice, setDice] = useState({ values: [6, 6, 6, 6, 6], rollId: 1 })
+  const [burst, setBurst] = useState(0)
+
+  function closeNote() {
+    sounds.click()
+    setShowNote(false)
+    try { localStorage.setItem(NOTE_KEY, '1') } catch { /* storage unavailable */ }
+  }
+
+  function rollMenuDice() {
+    const values = dice.values.map(() => Math.floor(Math.random() * 6) + 1)
+    setDice({ values, rollId: dice.rollId + 1 })
+    sounds.roll()
+    if (values.every(v => v === values[0])) {
+      setTimeout(() => {
+        sounds.yahtzee()
+        setBurst(b => b + 1)
+      }, 850)
+    }
+  }
 
   function openNaming(mode: 'solo' | 'local2p') {
     sounds.click()
     setNaming({ mode, names: mode === 'solo' ? [''] : ['', ''] })
   }
 
-  function handleLaunch() {
+  function launch() {
     if (!naming) return
     sounds.click()
     startGame(naming.mode, naming.names)
@@ -32,190 +62,117 @@ export default function Menu() {
   }
 
   return (
-    <div className="min-h-screen bg-arcade-bg flex flex-col items-center justify-center">
-      <div className="pointer-events-none fixed inset-0 bg-scanlines opacity-10 z-50" />
+    <div className="flex min-h-screen flex-col">
+      <div className="flex justify-end px-4 pt-3 sm:px-6">
+        <MuteButton />
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="text-center"
-      >
-        {/* Title */}
-        <div className="relative mb-2">
-          <div className="font-pixel text-5xl text-neon-pink tracking-wider drop-shadow-[0_0_20px_#ff2d78]">
-            YAHTZEE
-          </div>
-          <div className="font-pixel text-5xl text-neon-yellow absolute inset-0 translate-x-0.5 translate-y-0.5 opacity-40">
-            YAHTZEE
-          </div>
-        </div>
-        <div className="font-pixel text-neon-green text-xs tracking-[0.4em] mb-12">
-          by LH&amp;JM
-        </div>
-
-        {/* Animated dice row */}
-        <motion.div
-          className="flex justify-center gap-4 mb-12"
-          animate={{ y: [0, -4, 0] }}
-          transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-4 text-center">
+        <motion.h1
+          initial={{ opacity: 0, y: -30, rotate: -10 }}
+          animate={{ opacity: 1, y: 0, rotate: -4 }}
+          transition={{ type: 'spring', bounce: 0.45, duration: 0.9 }}
+          className="logo-text text-[clamp(4rem,15vw,7.5rem)] leading-[0.9]"
         >
-          {[1, 2, 3, 4, 5].map((v, i) => (
-            <DiceFace key={i} value={v} delay={i * 0.1} />
-          ))}
-        </motion.div>
+          Yahtzee
+        </motion.h1>
 
-        {/* Mode buttons */}
-        <div className="flex flex-col gap-4 items-center">
-          <motion.button
-            onClick={() => openNaming('solo')}
-            className="w-64 py-4 font-pixel text-sm bg-neon-pink text-black rounded-lg
-              shadow-[0_0_20px_#ff2d78] hover:shadow-[0_0_32px_#ff2d78] tracking-widest"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            1 PLAYER
-            <div className="text-[10px] opacity-70 font-mono mt-0.5">vs CPU</div>
-          </motion.button>
+        <div className="tray mt-9 w-full max-w-lg">
+          <div className="tray-felt flex h-[10.5rem] items-center justify-center gap-[calc(var(--die)*0.25)] [--die:3.25rem] min-[420px]:[--die:3.75rem] sm:h-[12rem] sm:[--die:4.25rem]">
+            {dice.values.map((v, i) => (
+              <Die key={i} value={v} rollId={dice.rollId} label="Roll the dice" onClick={rollMenuDice} />
+            ))}
+          </div>
+        </div>
+        <p className="mt-3 -rotate-1 font-hand text-[1.35rem] text-marigold">Tap the dice to give them a roll</p>
 
-          <motion.button
-            onClick={() => openNaming('local2p')}
-            className="w-64 py-4 font-pixel text-sm bg-neon-yellow text-black rounded-lg
-              shadow-[0_0_20px_#ffe600] hover:shadow-[0_0_32px_#ffe600] tracking-widest"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            2 PLAYERS
-            <div className="text-[10px] opacity-70 font-mono mt-0.5">local co-op</div>
-          </motion.button>
+        <div className="mt-8 flex w-full max-w-lg flex-col gap-3 sm:flex-row">
+          <button type="button" onClick={() => openNaming('solo')} className="btn-chunky flex-1 flex-col gap-0.5 py-4">
+            <span className="text-[1.15rem]">Play the computer</span>
+            <span className="text-[0.8rem] font-medium opacity-70">You against the CPU</span>
+          </button>
+          <button type="button" onClick={() => openNaming('local2p')} className="btn-chunky btn-paper flex-1 flex-col gap-0.5 py-4">
+            <span className="text-[1.15rem]">Pass and play</span>
+            <span className="text-[0.8rem] font-medium opacity-70">2 players, one device</span>
+          </button>
         </div>
 
-        {/* Rules hint */}
-        <div className="mt-12 font-mono text-gray-600 text-xs max-w-xs mx-auto leading-relaxed">
-          Roll 5 dice up to 3 times per turn.<br />
-          Fill all 13 categories to win.<br />
-          Click dice to hold between rolls.
-        </div>
-      </motion.div>
+        <p className="mt-8 max-w-md text-[0.95rem] leading-relaxed text-paper/75">
+          Roll five dice up to three times a turn and hold the ones you want to keep. Fill all 13 boxes on
+          your score card. Highest total wins.
+        </p>
+        <button
+          type="button"
+          onClick={() => { sounds.click(); setShowNote(true) }}
+          className="mt-3 cursor-pointer text-[0.9rem] text-paper/70 underline decoration-paper/30 underline-offset-2 hover:text-marigold hover:decoration-marigold"
+        >
+          Read the note from the original 1.0
+        </button>
+      </main>
 
-      {/* Welcome dialog */}
-      <AnimatePresence>
-        {showWelcome && (
-          <WelcomeDialog onClose={() => { sounds.click(); setShowWelcome(false) }} />
-        )}
-      </AnimatePresence>
+      <Credits />
+      <Confetti burst={burst} />
 
-      {/* Name entry overlay */}
+      <AnimatePresence>{showNote && <WelcomeDialog onClose={closeNote} />}</AnimatePresence>
+
       <AnimatePresence>
         {naming && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-40"
-            onClick={(e) => { if (e.target === e.currentTarget) setNaming(null) }}
+            className="fixed inset-0 z-40 grid place-items-center bg-black/55 p-4 backdrop-blur-[2px]"
+            onClick={e => { if (e.target === e.currentTarget) setNaming(null) }}
           >
             <motion.div
-              initial={{ scale: 0.85, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.85, y: 20 }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="naming-title"
+              onKeyDown={e => { if (e.key === 'Escape') setNaming(null) }}
+              initial={{ scale: 0.9, y: 30, rotate: 2 }}
+              animate={{ scale: 1, y: 0, rotate: -1 }}
+              exit={{ scale: 0.9, y: 30, opacity: 0 }}
               transition={{ type: 'spring', bounce: 0.3 }}
-              className="bg-arcade-panel border-2 border-neon-pink shadow-[0_0_30px_rgba(255,45,120,0.4)]
-                rounded-xl p-8 w-80 flex flex-col gap-5"
+              className="paper w-full max-w-sm rounded-2xl p-7 text-left"
             >
-              <div className="font-pixel text-neon-pink text-xs text-center tracking-widest">
-                {naming.mode === 'solo' ? 'ENTER YOUR NAME' : 'PLAYER NAMES'}
-              </div>
+              <h2 id="naming-title" className="font-display text-[2rem] leading-tight">
+                {naming.mode === 'solo' ? 'What’s your name?' : 'Who’s playing?'}
+              </h2>
+              <p className="mt-1 text-[0.9rem] text-print/65">
+                {naming.mode === 'solo' ? 'It goes at the top of your score card.' : 'Player 1 rolls first.'}
+              </p>
 
-              {naming.names.map((name, i) => (
-                <NameInput
-                  key={i}
-                  label={naming.mode === 'solo' ? 'Your name' : `Player ${i + 1}`}
-                  value={name}
-                  placeholder={naming.mode === 'solo' ? 'Player 1' : `Player ${i + 1}`}
-                  autoFocus={i === 0}
-                  onChange={val => setName(i, val)}
-                  onEnter={i === naming.names.length - 1 ? handleLaunch : undefined}
-                />
-              ))}
+              <form onSubmit={e => { e.preventDefault(); launch() }} className="mt-5 flex flex-col gap-5">
+                {naming.names.map((name, i) => (
+                  <label key={i} className="flex flex-col gap-1">
+                    <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-print/60">
+                      {naming.mode === 'solo' ? 'Your name' : `Player ${i + 1}`}
+                    </span>
+                    <input
+                      type="text"
+                      value={name}
+                      placeholder={naming.mode === 'solo' ? 'You' : `Player ${i + 1}`}
+                      maxLength={16}
+                      autoFocus={i === 0}
+                      onChange={e => setName(i, e.target.value)}
+                      className="border-b-2 border-print/30 bg-transparent py-1 font-hand text-[1.7rem] leading-tight text-ink outline-none transition-colors placeholder:text-pencil/50 focus:border-ink focus-visible:outline-none"
+                    />
+                  </label>
+                ))}
 
-              <div className="flex gap-3 mt-1">
-                <button
-                  onClick={() => setNaming(null)}
-                  className="flex-1 py-2 font-pixel text-[10px] bg-gray-700 text-gray-300 rounded
-                    hover:bg-gray-600 transition-all"
-                >
-                  BACK
-                </button>
-                <motion.button
-                  onClick={handleLaunch}
-                  className="flex-1 py-2 font-pixel text-[10px] bg-neon-pink text-black rounded
-                    shadow-[0_0_10px_#ff2d78] hover:shadow-[0_0_18px_#ff2d78] transition-all"
-                  whileTap={{ scale: 0.97 }}
-                >
-                  PLAY!
-                </motion.button>
-              </div>
+                <div className="mt-2 flex gap-3">
+                  <button type="button" onClick={() => setNaming(null)} className="btn-ghost">
+                    Back
+                  </button>
+                  <button type="submit" className="btn-chunky flex-1">
+                    Start game
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
-  )
-}
-
-function NameInput({ label, value, placeholder, autoFocus, onChange, onEnter }: {
-  label: string
-  value: string
-  placeholder: string
-  autoFocus?: boolean
-  onChange: (v: string) => void
-  onEnter?: () => void
-}) {
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => { if (autoFocus) ref.current?.focus() }, [autoFocus])
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="font-pixel text-[9px] text-gray-400 tracking-widest">{label.toUpperCase()}</label>
-      <input
-        ref={ref}
-        type="text"
-        value={value}
-        placeholder={placeholder}
-        maxLength={16}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && onEnter) onEnter() }}
-        className="bg-black border border-neon-pink/50 focus:border-neon-pink rounded px-3 py-2
-          font-mono text-sm text-white placeholder-gray-600 outline-none
-          focus:shadow-[0_0_8px_rgba(255,45,120,0.4)] transition-all"
-      />
-    </div>
-  )
-}
-
-function DiceFace({ value, delay }: { value: number; delay: number }) {
-  const dots: Record<number, [number, number][]> = {
-    1: [[50, 50]],
-    2: [[25, 25], [75, 75]],
-    3: [[25, 25], [50, 50], [75, 75]],
-    4: [[25, 25], [75, 25], [25, 75], [75, 75]],
-    5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]],
-  }
-
-  return (
-    <motion.div
-      className="relative w-12 h-12 rounded-lg bg-arcade-panel border-2 border-neon-pink shadow-[0_0_8px_#ff2d78]"
-      animate={{ rotate: [0, 5, -5, 0] }}
-      transition={{ repeat: Infinity, duration: 3, delay, ease: 'easeInOut' }}
-    >
-      {dots[value]?.map(([x, y], i) => (
-        <div
-          key={i}
-          className="absolute w-2 h-2 rounded-full bg-white shadow-[0_0_4px_white]"
-          style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%,-50%)' }}
-        />
-      ))}
-    </motion.div>
   )
 }

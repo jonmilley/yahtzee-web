@@ -6,6 +6,7 @@ export type CategoryId =
 export interface Category {
   id: CategoryId
   label: string
+  hint: string
   section: 'upper' | 'lower'
 }
 
@@ -30,17 +31,17 @@ export type GameMode = 'menu' | 'solo' | 'local2p'
 export type GamePhase = 'rolling' | 'scoring' | 'gameover'
 
 export const CATEGORIES: Category[] = [
-  { id: 'ones',         label: 'Ones',           section: 'upper' },
-  { id: 'twos',         label: 'Twos',           section: 'upper' },
-  { id: 'threes',       label: 'Threes',         section: 'upper' },
-  { id: 'fours',        label: 'Fours',          section: 'upper' },
-  { id: 'fives',        label: 'Fives',          section: 'upper' },
-  { id: 'sixes',        label: 'Sixes',          section: 'upper' },
-  { id: 'threeOfAKind', label: 'Three of a Kind',section: 'lower' },
-  { id: 'fourOfAKind',  label: 'Four of a Kind', section: 'lower' },
-  { id: 'fullHouse',    label: 'Full House',     section: 'lower' },
-  { id: 'smallStraight',label: 'Sm. Straight',   section: 'lower' },
-  { id: 'largeStraight',label: 'Lg. Straight',   section: 'lower' },
-  { id: 'yahtzee',      label: 'YAHTZEE!',       section: 'lower' },
-  { id: 'chance',       label: 'Chance',         section: 'lower' },
+  { id: 'ones',          label: 'Ones',            hint: 'Add up the 1s',        section: 'upper' },
+  { id: 'twos',          label: 'Twos',            hint: 'Add up the 2s',        section: 'upper' },
+  { id: 'threes',        label: 'Threes',          hint: 'Add up the 3s',        section: 'upper' },
+  { id: 'fours',         label: 'Fours',           hint: 'Add up the 4s',        section: 'upper' },
+  { id: 'fives',         label: 'Fives',           hint: 'Add up the 5s',        section: 'upper' },
+  { id: 'sixes',         label: 'Sixes',           hint: 'Add up the 6s',        section: 'upper' },
+  { id: 'threeOfAKind',  label: 'Three of a kind', hint: '3 alike, sum of dice', section: 'lower' },
+  { id: 'fourOfAKind',   label: 'Four of a kind',  hint: '4 alike, sum of dice', section: 'lower' },
+  { id: 'fullHouse',     label: 'Full house',      hint: '3 + 2 alike, 25',      section: 'lower' },
+  { id: 'smallStraight', label: 'Small straight',  hint: '4 in a row, 30',       section: 'lower' },
+  { id: 'largeStraight', label: 'Large straight',  hint: '5 in a row, 40',       section: 'lower' },
+  { id: 'yahtzee',       label: 'Yahtzee',         hint: '5 alike, 50',          section: 'lower' },
+  { id: 'chance',        label: 'Chance',          hint: 'Any dice, sum',        section: 'lower' },
 ]

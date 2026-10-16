@@ -5,7 +5,7 @@ import { calculateScore } from '../game/scoring'
 import { chooseHeld, chooseBestCategory } from '../game/ai'
 import { sounds } from '../sounds/sounds'
 
-interface GameStore {
+export interface GameStore {
   mode: GameMode
   phase: GamePhase
   players: Player[]
@@ -15,7 +15,10 @@ interface GameStore {
   pendingCategory: CategoryId | null
   round: number
   aiThinking: boolean
-  message: string
+  // Increments on every roll so the dice can animate, including CPU rolls
+  rollId: number
+  // Increments on every new game or exit so stale CPU timers can bail out
+  gameId: number
 
   startGame: (mode: GameMode, names?: string[]) => void
   rollDice: () => void
@@ -28,10 +31,6 @@ interface GameStore {
 type Get = () => GameStore
 type Set = (partial: Partial<GameStore> | ((s: GameStore) => Partial<GameStore>)) => void
 
-function turnMsg(p: Player): string {
-  return p.name === 'You' ? 'Your turn' : `${p.name}'s turn`
-}
-
 function freshDice(): Die[] {
   return Array.from({ length: 5 }, (_, i) => ({ id: i, value: 0, held: false }))
 }
@@ -40,26 +39,34 @@ function freshPlayer(id: number, name: string, isAI: boolean): Player {
   return { id, name, isAI, scoreCard: {} }
 }
 
+// setTimeout that is dropped if the player has left or restarted the game meanwhile
+function later(get: Get, ms: number, fn: () => void) {
+  const gameId = get().gameId
+  setTimeout(() => {
+    if (get().gameId === gameId) fn()
+  }, ms)
+}
+
 function aiShouldScore(dice: Die[], scoreCard: Partial<Record<CategoryId, number>>): boolean {
   const available = CATEGORIES.filter(c => scoreCard[c.id] === undefined)
   const best = Math.max(...available.map(c => calculateScore(c.id, dice)))
   return best >= 40
 }
 
-function aiStep(_newDice: Die[], rollsLeft: number, get: Get, set: Set) {
+function aiStep(rollsLeft: number, get: Get, set: Set) {
   if (rollsLeft === 0) {
-    setTimeout(() => {
+    later(get, 900, () => {
       const { dice, players, currentPlayerIdx } = get()
       const p = players[currentPlayerIdx]
       const cat = chooseBestCategory(dice, p.scoreCard)
       set({ pendingCategory: cat, aiThinking: false })
-      setTimeout(() => get().scoreCategory(), 500)
-    }, 800)
+      later(get, 700, () => get().scoreCategory())
+    })
     return
   }
 
   set({ aiThinking: true })
-  setTimeout(() => {
+  later(get, 1000, () => {
     const { dice: currentDice, players, currentPlayerIdx } = get()
     const p = players[currentPlayerIdx]
     const shouldScore = rollsLeft <= 1 || aiShouldScore(currentDice, p.scoreCard)
@@ -67,14 +74,14 @@ function aiStep(_newDice: Die[], rollsLeft: number, get: Get, set: Set) {
     if (shouldScore) {
       const cat = chooseBestCategory(currentDice, p.scoreCard)
       set({ pendingCategory: cat, aiThinking: false })
-      setTimeout(() => get().scoreCategory(), 600)
+      later(get, 800, () => get().scoreCategory())
     } else {
       const heldMask = chooseHeld(currentDice, p.scoreCard, rollsLeft)
       const held = currentDice.map((d, i) => ({ ...d, held: heldMask[i] }))
       set({ dice: held, aiThinking: false })
-      setTimeout(() => get().rollDice(), 700)
+      later(get, 700, () => get().rollDice())
     }
-  }, 900)
+  })
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -87,15 +94,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   pendingCategory: null,
   round: 1,
   aiThinking: false,
-  message: '',
+  rollId: 0,
+  gameId: 0,
 
   startGame(mode, names) {
-    const [n1 = 'Player 1', n2 = 'Player 2'] = names ?? []
+    const [n1 = '', n2 = ''] = names ?? []
     const players =
       mode === 'solo'
-        ? [freshPlayer(0, n1 || 'Player 1', false), freshPlayer(1, 'CPU', true)]
-        : [freshPlayer(0, n1 || 'Player 1', false), freshPlayer(1, n2 || 'Player 2', false)]
-    set({
+        ? [freshPlayer(0, n1.trim() || 'You', false), freshPlayer(1, 'CPU', true)]
+        : [freshPlayer(0, n1.trim() || 'Player 1', false), freshPlayer(1, n2.trim() || 'Player 2', false)]
+    set(s => ({
       mode,
       phase: 'rolling',
       players,
@@ -105,12 +113,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       pendingCategory: null,
       round: 1,
       aiThinking: false,
-      message: `${turnMsg(players[0])} — roll the dice!`,
-    })
+      gameId: s.gameId + 1,
+    }))
   },
 
   rollDice() {
-    const { rollsLeft, dice, phase, players, currentPlayerIdx, aiThinking } = get()
+    const { rollsLeft, dice, phase, players, currentPlayerIdx, aiThinking, rollId } = get()
     if (rollsLeft === 0 || phase !== 'rolling' || aiThinking) return
 
     sounds.roll()
@@ -120,24 +128,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     )
     const newRollsLeft = rollsLeft - 1
 
-    set({ dice: newDice, rollsLeft: newRollsLeft, pendingCategory: null })
+    set({ dice: newDice, rollsLeft: newRollsLeft, pendingCategory: null, rollId: rollId + 1 })
 
-    const player = players[currentPlayerIdx]
-    const prefix = player.name === 'You' ? 'You' : player.name
-    const msg =
-      newRollsLeft === 0
-        ? `${prefix} — pick a category to score`
-        : `${prefix} — ${newRollsLeft} roll${newRollsLeft !== 1 ? 's' : ''} left`
-    set({ message: msg })
-
-    if (player.isAI) {
-      aiStep(newDice, newRollsLeft, get, set)
+    if (players[currentPlayerIdx].isAI) {
+      aiStep(newRollsLeft, get, set)
     }
   },
 
   toggleHold(dieId) {
     const { rollsLeft, phase, players, currentPlayerIdx, aiThinking, dice } = get()
-    if (rollsLeft === 3 || phase !== 'rolling' || aiThinking) return
+    if (rollsLeft === 3 || rollsLeft === 0 || phase !== 'rolling' || aiThinking) return
     if (players[currentPlayerIdx].isAI) return
 
     sounds.hold()
@@ -177,8 +177,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const nextRound = nextPlayerIdx === 0 ? round + 1 : round
 
     if (nextRound > 13) {
-      set({ players: updatedPlayers, phase: 'gameover', message: '' })
-      sounds.gameover()
+      set({ players: updatedPlayers, pendingCategory: null, phase: 'gameover' })
       return
     }
 
@@ -190,15 +189,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       rollsLeft: 3,
       pendingCategory: null,
       round: nextRound,
-      message: `${turnMsg(nextPlayer)} — roll the dice!`,
     })
 
     if (nextPlayer.isAI) {
-      setTimeout(() => get().rollDice(), 600)
+      later(get, 900, () => get().rollDice())
     }
   },
 
   backToMenu() {
-    set({ mode: 'menu', phase: 'rolling', aiThinking: false })
+    set(s => ({ mode: 'menu', phase: 'rolling', aiThinking: false, gameId: s.gameId + 1 }))
   },
 }))
